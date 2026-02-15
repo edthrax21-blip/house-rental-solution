@@ -1,0 +1,41 @@
+version: "3.8"
+
+services:
+  # ── Frontend (React + Nginx) ──────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: houserental-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+    networks:
+      - houserental-net
+    restart: unless-stopped
+
+  # ── Backend (.NET 8 Web API) ──────────────────────────────────
+  api:
+    build:
+      context: ./src/HouseRental.Api
+      dockerfile: Dockerfile
+    container_name: houserental-api
+    ports:
+      - "5000:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      # host.docker.internal resolves to your Windows host machine
+      - ConnectionStrings__DefaultConnection=Server=host.docker.internal,1433;Database=HouseRentalDb;User Id=ezRental;Password=ezRental123;TrustServerCertificate=true;
+      - Cors__AllowedOrigins__0=http://localhost:3000
+      - Cors__AllowedOrigins__1=http://localhost:5173
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - houserental-net
+    restart: unless-stopped
+
+networks:
+  houserental-net:
+    driver: bridge
