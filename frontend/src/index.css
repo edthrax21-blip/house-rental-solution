@@ -13,6 +13,7 @@
   --shadow: 0 4px 20px rgba(26, 25, 23, 0.06);
   --font-sans: "DM Sans", system-ui, sans-serif;
   --font-display: "Fraunces", Georgia, serif;
+  --sidebar-width: 320px;
 }
 
 *,
@@ -32,9 +33,9 @@ body {
 }
 
 #root {
-  max-width: 960px;
+  max-width: 1280px;
   margin: 0 auto;
-  padding: 2rem 1.5rem;
+  padding: 1.5rem;
 }
 
 button {

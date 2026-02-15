@@ -134,6 +134,61 @@ BEGIN
     CREATE UNIQUE NONCLUSTERED INDEX [IX_Users_UserName] ON [dbo].[Users] ([UserName] ASC);
 END");
 
+    // Ensure RentalGroups table exists
+    await db.Database.ExecuteSqlRawAsync(@"
+IF OBJECT_ID(N'dbo.RentalGroups', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[RentalGroups] (
+        [Id] UNIQUEIDENTIFIER NOT NULL,
+        [Name] NVARCHAR(200) NOT NULL,
+        [CreatedAt] DATETIME2(7) NOT NULL,
+        CONSTRAINT [PK_RentalGroups] PRIMARY KEY CLUSTERED ([Id])
+    );
+END");
+
+    // Ensure Renters table exists
+    await db.Database.ExecuteSqlRawAsync(@"
+IF OBJECT_ID(N'dbo.Renters', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[Renters] (
+        [Id] UNIQUEIDENTIFIER NOT NULL,
+        [GroupId] UNIQUEIDENTIFIER NOT NULL,
+        [Name] NVARCHAR(256) NOT NULL,
+        [PhoneNumber] NVARCHAR(50) NULL,
+        [RentPrice] DECIMAL(18,2) NOT NULL,
+        [CreatedAt] DATETIME2(7) NOT NULL,
+        [UpdatedAt] DATETIME2(7) NULL,
+        CONSTRAINT [PK_Renters] PRIMARY KEY CLUSTERED ([Id]),
+        CONSTRAINT [FK_Renters_RentalGroups] FOREIGN KEY ([GroupId]) REFERENCES [dbo].[RentalGroups]([Id]) ON DELETE CASCADE
+    );
+END");
+
+    // Drop legacy IsPaid column from Renters if it exists (moved to Payments table)
+    await db.Database.ExecuteSqlRawAsync(@"
+IF COL_LENGTH('dbo.Renters', 'IsPaid') IS NOT NULL
+BEGIN
+    ALTER TABLE [dbo].[Renters] DROP COLUMN [IsPaid];
+END");
+
+    // Ensure Payments table exists
+    await db.Database.ExecuteSqlRawAsync(@"
+IF OBJECT_ID(N'dbo.Payments', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[Payments] (
+        [Id] UNIQUEIDENTIFIER NOT NULL,
+        [RenterId] UNIQUEIDENTIFIER NOT NULL,
+        [Month] INT NOT NULL,
+        [Year] INT NOT NULL,
+        [IsPaid] BIT NOT NULL DEFAULT 0,
+        [PaidDate] DATETIME2(7) NULL,
+        [CreatedAt] DATETIME2(7) NOT NULL,
+        CONSTRAINT [PK_Payments] PRIMARY KEY CLUSTERED ([Id]),
+        CONSTRAINT [FK_Payments_Renters] FOREIGN KEY ([RenterId]) REFERENCES [dbo].[Renters]([Id]) ON DELETE CASCADE
+    );
+    CREATE UNIQUE NONCLUSTERED INDEX [IX_Payments_RenterId_Month_Year]
+        ON [dbo].[Payments] ([RenterId], [Month], [Year]);
+END");
+
     // Seed admin user via raw SQL so it always runs when admin is missing (avoids DbContext tracking issues)
     var adminHash = BCrypt.Net.BCrypt.HashPassword("admin123");
     await db.Database.ExecuteSqlRawAsync(
