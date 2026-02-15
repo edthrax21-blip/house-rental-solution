@@ -12,7 +12,7 @@ on:
 env:
   # These can be overridden via GitHub repository variables if needed
   RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP || 'rg-houserental' }}
-  ACR_NAME: ${{ vars.AZURE_ACR_NAME || 'houserentalacr' }}
+  ACR_NAME: ${{ vars.AZURE_ACR_NAME || 'houserental2026acr' }}
   API_APP_NAME: ${{ vars.AZURE_API_APP_NAME || 'api' }}
   FRONTEND_APP_NAME: ${{ vars.AZURE_FRONTEND_APP_NAME || 'frontend' }}
 
