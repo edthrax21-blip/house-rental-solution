@@ -1,65 +1,116 @@
-# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
-# More GitHub Actions for Azure: https://github.com/Azure/actions
-
-name: Build and deploy ASP.Net Core app to Azure Web App - house-rental-solution
+# ──────────────────────────────────────────────────────────────────
+#  CI/CD: Build & Deploy to Azure Container Apps on push to master
+# ──────────────────────────────────────────────────────────────────
+name: Build and Deploy to Azure Container Apps
 
 on:
   push:
     branches:
       - master
-  workflow_dispatch:
+  workflow_dispatch:      # allow manual trigger from GitHub UI
+
+env:
+  # These can be overridden via GitHub repository variables if needed
+  RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP || 'rg-houserental' }}
+  ACR_NAME: ${{ vars.AZURE_ACR_NAME || 'houserentalacr' }}
+  API_APP_NAME: ${{ vars.AZURE_API_APP_NAME || 'api' }}
+  FRONTEND_APP_NAME: ${{ vars.AZURE_FRONTEND_APP_NAME || 'frontend' }}
 
 jobs:
-  build:
-    runs-on: windows-latest
+  build-and-deploy:
+    runs-on: ubuntu-latest
     permissions:
-      contents: read #This is required for actions/checkout
+      id-token: write   # needed for Azure OIDC login
+      contents: read
 
     steps:
-      - uses: actions/checkout@v4
+      # ── 1. Checkout code ──────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Set up .NET Core
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 'dotnet8.x'
-
-      - name: Build with dotnet
-        run: dotnet build --configuration Release
-
-      - name: dotnet publish
-        run: dotnet publish -c Release -o "${{env.DOTNET_ROOT}}/myapp"
-
-      - name: Upload artifact for deployment job
-        uses: actions/upload-artifact@v4
-        with:
-          name: .net-app
-          path: ${{env.DOTNET_ROOT}}/myapp
-
-  deploy:
-    runs-on: windows-latest
-    needs: build
-    permissions:
-      id-token: write #This is required for requesting the JWT
-      contents: read #This is required for actions/checkout
-
-    steps:
-      - name: Download artifact from build job
-        uses: actions/download-artifact@v4
-        with:
-          name: .net-app
-      
+      # ── 2. Login to Azure ─────────────────────────────────────
       - name: Login to Azure
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_B667AF7F09814EFCBC2EC2B1AD9A7ED4 }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_EDFAFB64318F406AA8570C98AB2A510F }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_844D4A3FC81246268E311E919310F3CF }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Deploy to Azure Web App
-        id: deploy-to-webapp
-        uses: azure/webapps-deploy@v3
-        with:
-          app-name: 'house-rental-solution'
-          slot-name: 'Production'
-          package: .
-          
+      # ── 3. Login to Azure Container Registry ──────────────────
+      - name: Login to ACR
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      # ── 4. Generate image tag ─────────────────────────────────
+      - name: Set image tag
+        id: tag
+        run: |
+          TAG="${{ github.sha }}"
+          echo "tag=${TAG:0:8}" >> "$GITHUB_OUTPUT"
+          echo "Image tag: ${TAG:0:8}"
+
+      # ── 5. Build & push backend API image ─────────────────────
+      - name: Build and push API image
+        run: |
+          IMAGE="${{ env.ACR_NAME }}.azurecr.io/api:${{ steps.tag.outputs.tag }}"
+          docker build -t "$IMAGE" -f src/HouseRental.Api/Dockerfile src/HouseRental.Api/
+          docker push "$IMAGE"
+          echo "API_IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      # ── 6. Deploy backend API container ───────────────────────
+      - name: Deploy API to Container Apps
+        run: |
+          az containerapp update \
+            --name ${{ env.API_APP_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --image "$API_IMAGE"
+
+      # ── 7. Get API internal FQDN ─────────────────────────────
+      - name: Get API internal FQDN
+        id: api-fqdn
+        run: |
+          FQDN=$(az containerapp show \
+            --name ${{ env.API_APP_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --query "properties.configuration.ingress.fqdn" -o tsv)
+          echo "fqdn=$FQDN" >> "$GITHUB_OUTPUT"
+          echo "API FQDN: $FQDN"
+
+      # ── 8. Patch nginx.conf with backend URL ──────────────────
+      - name: Patch nginx.conf with backend FQDN
+        run: |
+          FQDN="${{ steps.api-fqdn.outputs.fqdn }}"
+          sed -i "s|__API_BACKEND_URL__|https://${FQDN}|g" frontend/nginx.conf
+          sed -i "s|__API_BACKEND_HOST__|${FQDN}|g" frontend/nginx.conf
+          echo "Patched nginx.conf:"
+          cat frontend/nginx.conf
+
+      # ── 9. Build & push frontend image ────────────────────────
+      - name: Build and push Frontend image
+        run: |
+          IMAGE="${{ env.ACR_NAME }}.azurecr.io/frontend:${{ steps.tag.outputs.tag }}"
+          docker build -t "$IMAGE" -f frontend/Dockerfile frontend/
+          docker push "$IMAGE"
+          echo "FRONTEND_IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      # ── 10. Deploy frontend container ─────────────────────────
+      - name: Deploy Frontend to Container Apps
+        run: |
+          az containerapp update \
+            --name ${{ env.FRONTEND_APP_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --image "$FRONTEND_IMAGE"
+
+      # ── 11. Update CORS on API ────────────────────────────────
+      - name: Update API CORS with frontend URL
+        run: |
+          FRONTEND_FQDN=$(az containerapp show \
+            --name ${{ env.FRONTEND_APP_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --query "properties.configuration.ingress.fqdn" -o tsv)
+          az containerapp update \
+            --name ${{ env.API_APP_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --set-env-vars "Cors__AllowedOrigins__0=https://${FRONTEND_FQDN}"
+          echo "✅ Deployment complete!"
+          echo "   Frontend: https://${FRONTEND_FQDN}"
+          echo "   API:      https://${{ steps.api-fqdn.outputs.fqdn }}"
