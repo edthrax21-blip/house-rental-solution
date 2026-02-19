@@ -1,5 +1,5 @@
 :root {
-  --bg: #f8f6f3;
+  --bg: #f5f3f0;
   --surface: #ffffff;
   --text: #1a1917;
   --text-muted: #5c5854;
@@ -10,17 +10,12 @@
   --danger: #9d0208;
   --danger-soft: #ffcdd2;
   --radius: 12px;
-  --shadow: 0 4px 20px rgba(26, 25, 23, 0.06);
+  --shadow: 0 2px 12px rgba(26, 25, 23, 0.06);
   --font-sans: "DM Sans", system-ui, sans-serif;
   --font-display: "Fraunces", Georgia, serif;
-  --sidebar-width: 320px;
 }
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
+*, *::before, *::after { box-sizing: border-box; }
 
 body {
   margin: 0;
@@ -32,19 +27,7 @@ body {
   line-height: 1.5;
 }
 
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 1.5rem;
-}
+#root { min-height: 100vh; }
 
-button {
-  font-family: var(--font-sans);
-  cursor: pointer;
-}
-
-input,
-select,
-textarea {
-  font-family: var(--font-sans);
-}
+button { font-family: var(--font-sans); cursor: pointer; }
+input, select, textarea { font-family: var(--font-sans); }

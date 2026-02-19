@@ -13,6 +13,7 @@ namespace HouseRental.Api.Controllers;
 public class GroupsController : ControllerBase
 {
     private readonly RentalDbContext _db;
+    private static readonly string[] PaymentTypes = { "rent", "electricity", "water" };
 
     public GroupsController(RentalDbContext db) => _db = db;
 
@@ -21,11 +22,7 @@ public class GroupsController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<List<GroupDto>>> GetAll(CancellationToken ct)
     {
-        var groups = await _db.RentalGroups
-            .Include(g => g.Renters)
-            .OrderBy(g => g.Name)
-            .ToListAsync(ct);
-
+        var groups = await _db.RentalGroups.Include(g => g.Renters).OrderBy(g => g.Name).ToListAsync(ct);
         return Ok(groups.Select(ToDto).ToList());
     }
 
@@ -42,13 +39,7 @@ public class GroupsController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(req.Name))
             return BadRequest(new { message = "Group name is required." });
-
-        var group = new RentalGroup
-        {
-            Id = Guid.NewGuid(),
-            Name = req.Name.Trim(),
-            CreatedAt = DateTime.UtcNow,
-        };
+        var group = new RentalGroup { Id = Guid.NewGuid(), Name = req.Name.Trim(), CreatedAt = DateTime.UtcNow };
         _db.RentalGroups.Add(group);
         await _db.SaveChangesAsync(ct);
         return CreatedAtAction(nameof(GetById), new { id = group.Id }, ToDto(group));
@@ -59,9 +50,7 @@ public class GroupsController : ControllerBase
     {
         var group = await _db.RentalGroups.Include(g => g.Renters).FirstOrDefaultAsync(g => g.Id == id, ct);
         if (group == null) return NotFound();
-        if (string.IsNullOrWhiteSpace(req.Name))
-            return BadRequest(new { message = "Group name is required." });
-
+        if (string.IsNullOrWhiteSpace(req.Name)) return BadRequest(new { message = "Group name is required." });
         group.Name = req.Name.Trim();
         await _db.SaveChangesAsync(ct);
         return Ok(ToDto(group));
@@ -77,76 +66,30 @@ public class GroupsController : ControllerBase
         return NoContent();
     }
 
-    // ── Monthly summary ────────────────────────────────────────
-
-    [HttpGet("{id:guid}/summary")]
-    public async Task<ActionResult<GroupSummaryDto>> GetSummary(Guid id, [FromQuery] int month, [FromQuery] int year, CancellationToken ct)
-    {
-        var group = await _db.RentalGroups.Include(g => g.Renters).FirstOrDefaultAsync(g => g.Id == id, ct);
-        if (group == null) return NotFound();
-
-        var renterIds = group.Renters.Select(r => r.Id).ToList();
-        var payments = await _db.Payments
-            .Where(p => renterIds.Contains(p.RenterId) && p.Month == month && p.Year == year)
-            .ToListAsync(ct);
-
-        var totalRent = group.Renters.Sum(r => r.RentPrice);
-        var paidRenterIds = payments.Where(p => p.IsPaid).Select(p => p.RenterId).ToHashSet();
-        var paidAmount = group.Renters.Where(r => paidRenterIds.Contains(r.Id)).Sum(r => r.RentPrice);
-
-        return Ok(new GroupSummaryDto(
-            group.Id,
-            group.Name,
-            month,
-            year,
-            group.Renters.Count,
-            totalRent,
-            paidRenterIds.Count,
-            paidAmount,
-            group.Renters.Count - paidRenterIds.Count,
-            totalRent - paidAmount
-        ));
-    }
-
     // ── Renter CRUD ────────────────────────────────────────────
 
     [HttpGet("{groupId:guid}/renters")]
-    public async Task<ActionResult<List<RenterDto>>> GetRenters(Guid groupId, [FromQuery] int month, [FromQuery] int year, CancellationToken ct)
+    public async Task<ActionResult<List<RenterDto>>> GetRenters(Guid groupId, CancellationToken ct)
     {
         if (!await _db.RentalGroups.AnyAsync(g => g.Id == groupId, ct)) return NotFound();
         var renters = await _db.Renters.Where(r => r.GroupId == groupId).OrderBy(r => r.Name).ToListAsync(ct);
-        var renterIds = renters.Select(r => r.Id).ToList();
-
-        var payments = await _db.Payments
-            .Where(p => renterIds.Contains(p.RenterId) && p.Month == month && p.Year == year)
-            .ToDictionaryAsync(p => p.RenterId, ct);
-
-        return Ok(renters.Select(r =>
-        {
-            payments.TryGetValue(r.Id, out var payment);
-            return ToRenterDto(r, payment);
-        }).ToList());
+        return Ok(renters.Select(r => new RenterDto(r.Id, r.GroupId, r.Name, r.PhoneNumber, r.RentPrice, r.CreatedAt, r.UpdatedAt)).ToList());
     }
 
     [HttpPost("{groupId:guid}/renters")]
     public async Task<ActionResult<RenterDto>> AddRenter(Guid groupId, [FromBody] CreateRenterRequest req, CancellationToken ct)
     {
         if (!await _db.RentalGroups.AnyAsync(g => g.Id == groupId, ct)) return NotFound();
-        if (string.IsNullOrWhiteSpace(req.Name))
-            return BadRequest(new { message = "Renter name is required." });
-
+        if (string.IsNullOrWhiteSpace(req.Name)) return BadRequest(new { message = "Renter name is required." });
         var renter = new Renter
         {
-            Id = Guid.NewGuid(),
-            GroupId = groupId,
-            Name = req.Name.Trim(),
-            PhoneNumber = req.PhoneNumber?.Trim() ?? "",
-            RentPrice = req.RentPrice,
-            CreatedAt = DateTime.UtcNow,
+            Id = Guid.NewGuid(), GroupId = groupId, Name = req.Name.Trim(),
+            PhoneNumber = req.PhoneNumber?.Trim() ?? "", RentPrice = req.RentPrice, CreatedAt = DateTime.UtcNow,
         };
         _db.Renters.Add(renter);
         await _db.SaveChangesAsync(ct);
-        return Created($"/api/groups/{groupId}/renters/{renter.Id}", ToRenterDto(renter, null));
+        return Created($"/api/groups/{groupId}/renters/{renter.Id}",
+            new RenterDto(renter.Id, renter.GroupId, renter.Name, renter.PhoneNumber, renter.RentPrice, renter.CreatedAt, renter.UpdatedAt));
     }
 
     [HttpPut("{groupId:guid}/renters/{renterId:guid}")]
@@ -154,13 +97,12 @@ public class GroupsController : ControllerBase
     {
         var renter = await _db.Renters.FirstOrDefaultAsync(r => r.Id == renterId && r.GroupId == groupId, ct);
         if (renter == null) return NotFound();
-
         renter.Name = req.Name?.Trim() ?? renter.Name;
         renter.PhoneNumber = req.PhoneNumber?.Trim() ?? renter.PhoneNumber;
         renter.RentPrice = req.RentPrice;
         renter.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
-        return Ok(ToRenterDto(renter, null));
+        return Ok(new RenterDto(renter.Id, renter.GroupId, renter.Name, renter.PhoneNumber, renter.RentPrice, renter.CreatedAt, renter.UpdatedAt));
     }
 
     [HttpDelete("{groupId:guid}/renters/{renterId:guid}")]
@@ -175,77 +117,141 @@ public class GroupsController : ControllerBase
 
     // ── Payment endpoints ──────────────────────────────────────
 
+    [HttpGet("{groupId:guid}/payments")]
+    public async Task<ActionResult<List<RenterPaymentsDto>>> GetPayments(Guid groupId, [FromQuery] int month, [FromQuery] int year, CancellationToken ct)
+    {
+        if (!await _db.RentalGroups.AnyAsync(g => g.Id == groupId, ct)) return NotFound();
+        var renters = await _db.Renters.Where(r => r.GroupId == groupId).OrderBy(r => r.Name).ToListAsync(ct);
+        var renterIds = renters.Select(r => r.Id).ToList();
+        var payments = await _db.Payments
+            .Where(p => renterIds.Contains(p.RenterId) && p.Month == month && p.Year == year)
+            .ToListAsync(ct);
+
+        var lookup = payments.ToLookup(p => p.RenterId);
+        var result = renters.Select(r =>
+        {
+            var renterPayments = lookup[r.Id].ToDictionary(p => p.Type);
+            return new RenterPaymentsDto(
+                r.Id, r.Name, r.PhoneNumber, r.RentPrice,
+                ToPaymentItem(renterPayments, "rent", r.RentPrice),
+                ToPaymentItem(renterPayments, "electricity", 0),
+                ToPaymentItem(renterPayments, "water", 0)
+            );
+        }).ToList();
+        return Ok(result);
+    }
+
     [HttpPut("{groupId:guid}/renters/{renterId:guid}/payment")]
     public async Task<ActionResult<PaymentDto>> SetPayment(Guid groupId, Guid renterId, [FromBody] SetPaymentRequest req, CancellationToken ct)
     {
         var renter = await _db.Renters.FirstOrDefaultAsync(r => r.Id == renterId && r.GroupId == groupId, ct);
         if (renter == null) return NotFound();
+        if (!PaymentTypes.Contains(req.Type))
+            return BadRequest(new { message = $"Invalid type. Must be one of: {string.Join(", ", PaymentTypes)}" });
 
         var payment = await _db.Payments
-            .FirstOrDefaultAsync(p => p.RenterId == renterId && p.Month == req.Month && p.Year == req.Year, ct);
+            .FirstOrDefaultAsync(p => p.RenterId == renterId && p.Month == req.Month && p.Year == req.Year && p.Type == req.Type, ct);
 
         if (payment == null)
         {
             payment = new Payment
             {
-                Id = Guid.NewGuid(),
-                RenterId = renterId,
-                Month = req.Month,
-                Year = req.Year,
-                IsPaid = req.IsPaid,
-                PaidDate = req.IsPaid ? DateTime.UtcNow : null,
-                CreatedAt = DateTime.UtcNow,
+                Id = Guid.NewGuid(), RenterId = renterId, Month = req.Month, Year = req.Year,
+                Type = req.Type, Amount = req.Amount, IsPaid = req.IsPaid,
+                PaidDate = req.IsPaid ? DateTime.UtcNow : null, CreatedAt = DateTime.UtcNow,
             };
             _db.Payments.Add(payment);
         }
         else
         {
+            payment.Amount = req.Amount;
             payment.IsPaid = req.IsPaid;
             payment.PaidDate = req.IsPaid ? DateTime.UtcNow : null;
         }
-
         await _db.SaveChangesAsync(ct);
-        return Ok(new PaymentDto(payment.Id, payment.RenterId, payment.Month, payment.Year, payment.IsPaid, payment.PaidDate));
+        return Ok(new PaymentDto(payment.Id, payment.RenterId, payment.Month, payment.Year, payment.Type, payment.Amount, payment.IsPaid, payment.PaidDate));
     }
 
-    // Get all payment records for a group (for audit: returns all months that have at least one record)
-    [HttpGet("{groupId:guid}/payments")]
-    public async Task<ActionResult<List<MonthlyRecordDto>>> GetPaymentRecords(Guid groupId, CancellationToken ct)
+    // ── Reports ────────────────────────────────────────────────
+
+    [HttpGet("reports/summary")]
+    public async Task<ActionResult<List<BlockReportDto>>> GetReportSummary([FromQuery] int month, [FromQuery] int year, CancellationToken ct)
+    {
+        var groups = await _db.RentalGroups.Include(g => g.Renters).OrderBy(g => g.Name).ToListAsync(ct);
+        var allRenterIds = groups.SelectMany(g => g.Renters.Select(r => r.Id)).ToList();
+        var payments = await _db.Payments
+            .Where(p => allRenterIds.Contains(p.RenterId) && p.Month == month && p.Year == year)
+            .ToListAsync(ct);
+        var paymentLookup = payments.ToLookup(p => p.RenterId);
+
+        var result = groups.Select(g =>
+        {
+            var renters = g.Renters;
+            var totalRent = renters.Sum(r => r.RentPrice);
+            var rentPayments = renters.SelectMany(r => paymentLookup[r.Id]).Where(p => p.Type == "rent").ToList();
+            var elecPayments = renters.SelectMany(r => paymentLookup[r.Id]).Where(p => p.Type == "electricity").ToList();
+            var waterPayments = renters.SelectMany(r => paymentLookup[r.Id]).Where(p => p.Type == "water").ToList();
+
+            return new BlockReportDto(
+                g.Id, g.Name, renters.Count, totalRent,
+                new TypeSummaryDto(rentPayments.Count(p => p.IsPaid), rentPayments.Count(p => !p.IsPaid), rentPayments.Where(p => p.IsPaid).Sum(p => p.Amount)),
+                new TypeSummaryDto(elecPayments.Count(p => p.IsPaid), elecPayments.Count(p => !p.IsPaid), elecPayments.Where(p => p.IsPaid).Sum(p => p.Amount)),
+                new TypeSummaryDto(waterPayments.Count(p => p.IsPaid), waterPayments.Count(p => !p.IsPaid), waterPayments.Where(p => p.IsPaid).Sum(p => p.Amount))
+            );
+        }).ToList();
+
+        return Ok(result);
+    }
+
+    [HttpGet("reports/{groupId:guid}/renters")]
+    public async Task<ActionResult<List<RenterReportDto>>> GetRenterReport(Guid groupId, [FromQuery] int month, [FromQuery] int year, CancellationToken ct)
     {
         if (!await _db.RentalGroups.AnyAsync(g => g.Id == groupId, ct)) return NotFound();
-
-        var renterIds = await _db.Renters.Where(r => r.GroupId == groupId).Select(r => r.Id).ToListAsync(ct);
+        var renters = await _db.Renters.Where(r => r.GroupId == groupId).OrderBy(r => r.Name).ToListAsync(ct);
+        var renterIds = renters.Select(r => r.Id).ToList();
         var payments = await _db.Payments
-            .Where(p => renterIds.Contains(p.RenterId))
+            .Where(p => renterIds.Contains(p.RenterId) && p.Month == month && p.Year == year)
             .ToListAsync(ct);
+        var lookup = payments.ToLookup(p => p.RenterId);
 
-        var grouped = payments
-            .GroupBy(p => new { p.Year, p.Month })
-            .OrderByDescending(g => g.Key.Year).ThenByDescending(g => g.Key.Month)
-            .Select(g => new MonthlyRecordDto(g.Key.Month, g.Key.Year, g.Count(p => p.IsPaid), g.Count(p => !p.IsPaid)))
-            .ToList();
-
-        return Ok(grouped);
+        var result = renters.Select(r =>
+        {
+            var rp = lookup[r.Id].ToDictionary(p => p.Type);
+            return new RenterReportDto(
+                r.Id, r.Name, r.RentPrice,
+                rp.TryGetValue("rent", out var rent) ? new PaymentStatusDto(rent.Amount, rent.IsPaid, rent.PaidDate) : new PaymentStatusDto(r.RentPrice, false, null),
+                rp.TryGetValue("electricity", out var elec) ? new PaymentStatusDto(elec.Amount, elec.IsPaid, elec.PaidDate) : new PaymentStatusDto(0, false, null),
+                rp.TryGetValue("water", out var water) ? new PaymentStatusDto(water.Amount, water.IsPaid, water.PaidDate) : new PaymentStatusDto(0, false, null)
+            );
+        }).ToList();
+        return Ok(result);
     }
 
     // ── DTO helpers ────────────────────────────────────────────
 
-    private static GroupDto ToDto(RentalGroup g) => new(g.Id, g.Name, g.CreatedAt, g.Renters.Count,
-        g.Renters.Sum(r => r.RentPrice));
+    private static GroupDto ToDto(RentalGroup g) => new(g.Id, g.Name, g.CreatedAt, g.Renters.Count, g.Renters.Sum(r => r.RentPrice));
 
-    private static RenterDto ToRenterDto(Renter r, Payment? payment) => new(
-        r.Id, r.GroupId, r.Name, r.PhoneNumber, r.RentPrice, r.CreatedAt, r.UpdatedAt,
-        payment != null ? new PaymentDto(payment.Id, payment.RenterId, payment.Month, payment.Year, payment.IsPaid, payment.PaidDate) : null
-    );
+    private static PaymentItemDto ToPaymentItem(Dictionary<string, Payment> dict, string type, decimal defaultAmount)
+    {
+        if (dict.TryGetValue(type, out var p))
+            return new PaymentItemDto(p.Id, p.Type, p.Amount, p.IsPaid, p.PaidDate);
+        return new PaymentItemDto(null, type, defaultAmount, false, null);
+    }
 }
 
 // ── Request / Response records ─────────────────────────────────
 public record CreateGroupRequest(string Name);
 public record CreateRenterRequest(string Name, string? PhoneNumber, decimal RentPrice);
-public record SetPaymentRequest(int Month, int Year, bool IsPaid);
+public record SetPaymentRequest(int Month, int Year, string Type, decimal Amount, bool IsPaid);
 
 public record GroupDto(Guid Id, string Name, DateTime CreatedAt, int RenterCount, decimal TotalRent);
-public record RenterDto(Guid Id, Guid GroupId, string Name, string PhoneNumber, decimal RentPrice, DateTime CreatedAt, DateTime? UpdatedAt, PaymentDto? Payment);
-public record PaymentDto(Guid Id, Guid RenterId, int Month, int Year, bool IsPaid, DateTime? PaidDate);
-public record GroupSummaryDto(Guid GroupId, string GroupName, int Month, int Year, int TotalRenters, decimal TotalRentPrice, int PaidRenters, decimal TotalPaidAmount, int UnpaidRenters, decimal TotalUnpaidAmount);
-public record MonthlyRecordDto(int Month, int Year, int PaidCount, int UnpaidCount);
+public record RenterDto(Guid Id, Guid GroupId, string Name, string PhoneNumber, decimal RentPrice, DateTime CreatedAt, DateTime? UpdatedAt);
+public record PaymentDto(Guid Id, Guid RenterId, int Month, int Year, string Type, decimal Amount, bool IsPaid, DateTime? PaidDate);
+public record PaymentItemDto(Guid? Id, string Type, decimal Amount, bool IsPaid, DateTime? PaidDate);
+public record RenterPaymentsDto(Guid RenterId, string Name, string PhoneNumber, decimal RentPrice, PaymentItemDto Rent, PaymentItemDto Electricity, PaymentItemDto Water);
+
+// Reports
+public record TypeSummaryDto(int Paid, int Unpaid, decimal CollectedAmount);
+public record BlockReportDto(Guid GroupId, string GroupName, int RenterCount, decimal TotalRent, TypeSummaryDto Rent, TypeSummaryDto Electricity, TypeSummaryDto Water);
+public record RenterReportDto(Guid RenterId, string Name, decimal RentPrice, PaymentStatusDto Rent, PaymentStatusDto Electricity, PaymentStatusDto Water);
+public record PaymentStatusDto(decimal Amount, bool IsPaid, DateTime? PaidDate);
