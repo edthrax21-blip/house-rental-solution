@@ -53,7 +53,9 @@ public class RentalDbContext : DbContext
         modelBuilder.Entity<Payment>(e =>
         {
             e.HasKey(x => x.Id);
-            e.HasIndex(x => new { x.RenterId, x.Month, x.Year }).IsUnique();
+            e.Property(x => x.Type).HasMaxLength(50).IsRequired();
+            e.Property(x => x.Amount).HasPrecision(18, 2);
+            e.HasIndex(x => new { x.RenterId, x.Month, x.Year, x.Type }).IsUnique();
         });
     }
 }

@@ -170,7 +170,7 @@ BEGIN
     ALTER TABLE [dbo].[Renters] DROP COLUMN [IsPaid];
 END");
 
-    // Ensure Payments table exists
+    // Ensure Payments table exists with Type and Amount columns
     await db.Database.ExecuteSqlRawAsync(@"
 IF OBJECT_ID(N'dbo.Payments', N'U') IS NULL
 BEGIN
@@ -179,14 +179,42 @@ BEGIN
         [RenterId] UNIQUEIDENTIFIER NOT NULL,
         [Month] INT NOT NULL,
         [Year] INT NOT NULL,
+        [Type] NVARCHAR(50) NOT NULL DEFAULT 'rent',
+        [Amount] DECIMAL(18,2) NOT NULL DEFAULT 0,
         [IsPaid] BIT NOT NULL DEFAULT 0,
         [PaidDate] DATETIME2(7) NULL,
         [CreatedAt] DATETIME2(7) NOT NULL,
         CONSTRAINT [PK_Payments] PRIMARY KEY CLUSTERED ([Id]),
         CONSTRAINT [FK_Payments_Renters] FOREIGN KEY ([RenterId]) REFERENCES [dbo].[Renters]([Id]) ON DELETE CASCADE
     );
-    CREATE UNIQUE NONCLUSTERED INDEX [IX_Payments_RenterId_Month_Year]
-        ON [dbo].[Payments] ([RenterId], [Month], [Year]);
+    CREATE UNIQUE NONCLUSTERED INDEX [IX_Payments_RenterId_Month_Year_Type]
+        ON [dbo].[Payments] ([RenterId], [Month], [Year], [Type]);
+END");
+
+    // Add Type column if missing (upgrade from old schema)
+    await db.Database.ExecuteSqlRawAsync(@"
+IF OBJECT_ID(N'dbo.Payments', N'U') IS NOT NULL AND COL_LENGTH('dbo.Payments', 'Type') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Payments] ADD [Type] NVARCHAR(50) NOT NULL DEFAULT 'rent';
+END");
+
+    // Add Amount column if missing (upgrade from old schema)
+    await db.Database.ExecuteSqlRawAsync(@"
+IF OBJECT_ID(N'dbo.Payments', N'U') IS NOT NULL AND COL_LENGTH('dbo.Payments', 'Amount') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Payments] ADD [Amount] DECIMAL(18,2) NOT NULL DEFAULT 0;
+END");
+
+    // Update unique index to include Type (drop old, create new)
+    await db.Database.ExecuteSqlRawAsync(@"
+IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Payments_RenterId_Month_Year' AND object_id = OBJECT_ID('dbo.Payments'))
+BEGIN
+    DROP INDEX [IX_Payments_RenterId_Month_Year] ON [dbo].[Payments];
+END
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Payments_RenterId_Month_Year_Type' AND object_id = OBJECT_ID('dbo.Payments'))
+BEGIN
+    CREATE UNIQUE NONCLUSTERED INDEX [IX_Payments_RenterId_Month_Year_Type]
+        ON [dbo].[Payments] ([RenterId], [Month], [Year], [Type]);
 END");
 
     // Seed admin user via raw SQL so it always runs when admin is missing (avoids DbContext tracking issues)
