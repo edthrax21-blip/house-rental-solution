@@ -195,8 +195,27 @@
 
 /* ── Payment table specifics ─────────────────── */
 .th-payment { text-align: center; }
-.td-payment { text-align: center; }
-.payment-amount { display: block; font-size: 0.78rem; color: var(--text-muted); margin-top: 0.15rem; }
+.td-payment { text-align: center; vertical-align: middle; }
+.payment-amount-main { font-weight: 600; color: var(--accent); font-size: 0.92rem; }
+.total-amount { font-weight: 700; color: var(--accent); font-size: 0.95rem; }
+
+.bill-input-group { display: flex; align-items: center; gap: 0.3rem; justify-content: center; }
+.bill-input {
+  width: 80px; padding: 0.3rem 0.5rem; font-size: 0.85rem;
+  border: 1px solid var(--border); border-radius: 6px; background: var(--surface);
+  text-align: right;
+}
+.bill-input:focus { outline: none; border-color: var(--accent); }
+
+.td-wa-status { font-size: 0.78rem; white-space: nowrap; }
+.wa-sent-badge {
+  display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.5rem;
+  font-size: 0.75rem; font-weight: 600; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent);
+}
+
+.report-block-total { font-size: 0.88rem; margin-top: 0.5rem; color: var(--text); }
+
 .receipt-buttons { display: flex; gap: 0.3rem; flex-wrap: wrap; }
 
 /* ── Payment management controls ─────────────── */
@@ -234,6 +253,14 @@
   cursor: pointer; transition: background 0.2s, color 0.2s;
 }
 .btn-receipt:hover { background: var(--accent); color: white; }
+
+.btn-whatsapp {
+  display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.65rem;
+  font-size: 0.78rem; font-weight: 600; border: 1.5px solid #25d366;
+  border-radius: 6px; background: #e8fce8; color: #128c7e;
+  cursor: pointer; transition: background 0.2s, color 0.2s; white-space: nowrap;
+}
+.btn-whatsapp:hover { background: #25d366; color: white; }
 
 /* ── Reports ─────────────────────────────────── */
 .report-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; }

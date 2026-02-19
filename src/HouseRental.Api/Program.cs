@@ -217,6 +217,13 @@ BEGIN
         ON [dbo].[Payments] ([RenterId], [Month], [Year], [Type]);
 END");
 
+    // Add WhatsAppSentAt column if missing
+    await db.Database.ExecuteSqlRawAsync(@"
+IF OBJECT_ID(N'dbo.Payments', N'U') IS NOT NULL AND COL_LENGTH('dbo.Payments', 'WhatsAppSentAt') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Payments] ADD [WhatsAppSentAt] DATETIME2(7) NULL;
+END");
+
     // Seed admin user via raw SQL so it always runs when admin is missing (avoids DbContext tracking issues)
     var adminHash = BCrypt.Net.BCrypt.HashPassword("admin123");
     await db.Database.ExecuteSqlRawAsync(
