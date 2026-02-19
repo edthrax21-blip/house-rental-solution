@@ -13,7 +13,6 @@ namespace HouseRental.Api.Controllers;
 public class GroupsController : ControllerBase
 {
     private readonly RentalDbContext _db;
-    private static readonly string[] PaymentTypes = { "rent", "electricity", "water" };
 
     public GroupsController(RentalDbContext db) => _db = db;
 
@@ -130,46 +129,56 @@ public class GroupsController : ControllerBase
         var lookup = payments.ToLookup(p => p.RenterId);
         var result = renters.Select(r =>
         {
-            var renterPayments = lookup[r.Id].ToDictionary(p => p.Type);
+            var dict = lookup[r.Id].ToDictionary(p => p.Type);
+            dict.TryGetValue("rent", out var rentPay);
+            dict.TryGetValue("electricity", out var elecPay);
+            dict.TryGetValue("water", out var waterPay);
+
+            var rentAmount = rentPay != null && rentPay.Amount > 0 ? rentPay.Amount : r.RentPrice;
+            var elecAmount = elecPay?.Amount ?? 0;
+            var waterAmount = waterPay?.Amount ?? 0;
+            var isPaid = rentPay?.IsPaid ?? false;
+            var paidDate = rentPay?.PaidDate;
+            var waSentAt = rentPay?.WhatsAppSentAt;
+
             return new RenterPaymentsDto(
                 r.Id, r.Name, r.PhoneNumber, r.RentPrice,
-                ToPaymentItem(renterPayments, "rent", r.RentPrice),
-                ToPaymentItem(renterPayments, "electricity", 0),
-                ToPaymentItem(renterPayments, "water", 0)
+                rentAmount, elecAmount, waterAmount,
+                rentAmount + elecAmount + waterAmount,
+                isPaid, paidDate, waSentAt
             );
         }).ToList();
         return Ok(result);
     }
 
-    [HttpPut("{groupId:guid}/renters/{renterId:guid}/payment")]
-    public async Task<ActionResult<PaymentDto>> SetPayment(Guid groupId, Guid renterId, [FromBody] SetPaymentRequest req, CancellationToken ct)
+    /// <summary>Update electricity/water bill amounts for a renter</summary>
+    [HttpPut("{groupId:guid}/renters/{renterId:guid}/bills")]
+    public async Task<IActionResult> UpdateBills(Guid groupId, Guid renterId, [FromBody] UpdateBillsRequest req, CancellationToken ct)
     {
         var renter = await _db.Renters.FirstOrDefaultAsync(r => r.Id == renterId && r.GroupId == groupId, ct);
         if (renter == null) return NotFound();
-        if (!PaymentTypes.Contains(req.Type))
-            return BadRequest(new { message = $"Invalid type. Must be one of: {string.Join(", ", PaymentTypes)}" });
 
-        var payment = await _db.Payments
-            .FirstOrDefaultAsync(p => p.RenterId == renterId && p.Month == req.Month && p.Year == req.Year && p.Type == req.Type, ct);
-
-        if (payment == null)
-        {
-            payment = new Payment
-            {
-                Id = Guid.NewGuid(), RenterId = renterId, Month = req.Month, Year = req.Year,
-                Type = req.Type, Amount = req.Amount, IsPaid = req.IsPaid,
-                PaidDate = req.IsPaid ? DateTime.UtcNow : null, CreatedAt = DateTime.UtcNow,
-            };
-            _db.Payments.Add(payment);
-        }
-        else
-        {
-            payment.Amount = req.Amount;
-            payment.IsPaid = req.IsPaid;
-            payment.PaidDate = req.IsPaid ? DateTime.UtcNow : null;
-        }
+        await UpsertPaymentAmount(renterId, req.Month, req.Year, "electricity", req.ElectricityAmount, ct);
+        await UpsertPaymentAmount(renterId, req.Month, req.Year, "water", req.WaterAmount, ct);
         await _db.SaveChangesAsync(ct);
-        return Ok(new PaymentDto(payment.Id, payment.RenterId, payment.Month, payment.Year, payment.Type, payment.Amount, payment.IsPaid, payment.PaidDate));
+        return Ok(new { success = true });
+    }
+
+    /// <summary>Toggle paid status for a renter (marks rent/elec/water together)</summary>
+    [HttpPut("{groupId:guid}/renters/{renterId:guid}/toggle-paid")]
+    public async Task<IActionResult> TogglePaid(Guid groupId, Guid renterId, [FromBody] TogglePaidRequest req, CancellationToken ct)
+    {
+        var renter = await _db.Renters.FirstOrDefaultAsync(r => r.Id == renterId && r.GroupId == groupId, ct);
+        if (renter == null) return NotFound();
+
+        var paidDate = req.IsPaid ? DateTime.UtcNow : (DateTime?)null;
+
+        var rentPay = await UpsertPayment(renterId, req.Month, req.Year, "rent", renter.RentPrice, req.IsPaid, paidDate, ct);
+        await SyncPaidStatus(renterId, req.Month, req.Year, "electricity", req.IsPaid, paidDate, ct);
+        await SyncPaidStatus(renterId, req.Month, req.Year, "water", req.IsPaid, paidDate, ct);
+
+        await _db.SaveChangesAsync(ct);
+        return Ok(new { isPaid = rentPay.IsPaid, paidDate = rentPay.PaidDate });
     }
 
     // ── Reports ────────────────────────────────────────────────
@@ -191,12 +200,16 @@ public class GroupsController : ControllerBase
             var rentPayments = renters.SelectMany(r => paymentLookup[r.Id]).Where(p => p.Type == "rent").ToList();
             var elecPayments = renters.SelectMany(r => paymentLookup[r.Id]).Where(p => p.Type == "electricity").ToList();
             var waterPayments = renters.SelectMany(r => paymentLookup[r.Id]).Where(p => p.Type == "water").ToList();
+            var totalCollected = rentPayments.Where(p => p.IsPaid).Sum(p => p.Amount)
+                + elecPayments.Where(p => p.IsPaid).Sum(p => p.Amount)
+                + waterPayments.Where(p => p.IsPaid).Sum(p => p.Amount);
 
             return new BlockReportDto(
                 g.Id, g.Name, renters.Count, totalRent,
                 new TypeSummaryDto(rentPayments.Count(p => p.IsPaid), rentPayments.Count(p => !p.IsPaid), rentPayments.Where(p => p.IsPaid).Sum(p => p.Amount)),
                 new TypeSummaryDto(elecPayments.Count(p => p.IsPaid), elecPayments.Count(p => !p.IsPaid), elecPayments.Where(p => p.IsPaid).Sum(p => p.Amount)),
-                new TypeSummaryDto(waterPayments.Count(p => p.IsPaid), waterPayments.Count(p => !p.IsPaid), waterPayments.Where(p => p.IsPaid).Sum(p => p.Amount))
+                new TypeSummaryDto(waterPayments.Count(p => p.IsPaid), waterPayments.Count(p => !p.IsPaid), waterPayments.Where(p => p.IsPaid).Sum(p => p.Amount)),
+                totalCollected
             );
         }).ToList();
 
@@ -217,44 +230,73 @@ public class GroupsController : ControllerBase
         var result = renters.Select(r =>
         {
             var rp = lookup[r.Id].ToDictionary(p => p.Type);
+            rp.TryGetValue("rent", out var rent);
+            rp.TryGetValue("electricity", out var elec);
+            rp.TryGetValue("water", out var water);
+            var rentAmt = rent != null && rent.Amount > 0 ? rent.Amount : r.RentPrice;
+            var elecAmt = elec?.Amount ?? 0;
+            var waterAmt = water?.Amount ?? 0;
             return new RenterReportDto(
-                r.Id, r.Name, r.RentPrice,
-                rp.TryGetValue("rent", out var rent) ? new PaymentStatusDto(rent.Amount, rent.IsPaid, rent.PaidDate) : new PaymentStatusDto(r.RentPrice, false, null),
-                rp.TryGetValue("electricity", out var elec) ? new PaymentStatusDto(elec.Amount, elec.IsPaid, elec.PaidDate) : new PaymentStatusDto(0, false, null),
-                rp.TryGetValue("water", out var water) ? new PaymentStatusDto(water.Amount, water.IsPaid, water.PaidDate) : new PaymentStatusDto(0, false, null)
+                r.Id, r.Name, r.RentPrice, rentAmt, elecAmt, waterAmt,
+                rentAmt + elecAmt + waterAmt,
+                rent?.IsPaid ?? false, rent?.PaidDate
             );
         }).ToList();
         return Ok(result);
     }
 
-    // ── DTO helpers ────────────────────────────────────────────
+    // ── Private helpers ────────────────────────────────────────
 
     private static GroupDto ToDto(RentalGroup g) => new(g.Id, g.Name, g.CreatedAt, g.Renters.Count, g.Renters.Sum(r => r.RentPrice));
 
-    private static PaymentItemDto ToPaymentItem(Dictionary<string, Payment> dict, string type, decimal defaultAmount)
+    private async Task UpsertPaymentAmount(Guid renterId, int month, int year, string type, decimal amount, CancellationToken ct)
     {
-        if (dict.TryGetValue(type, out var p))
+        var p = await _db.Payments.FirstOrDefaultAsync(x => x.RenterId == renterId && x.Month == month && x.Year == year && x.Type == type, ct);
+        if (p == null)
         {
-            var amount = p.Amount > 0 ? p.Amount : defaultAmount;
-            return new PaymentItemDto(p.Id, p.Type, amount, p.IsPaid, p.PaidDate);
+            _db.Payments.Add(new Payment { Id = Guid.NewGuid(), RenterId = renterId, Month = month, Year = year, Type = type, Amount = amount, CreatedAt = DateTime.UtcNow });
         }
-        return new PaymentItemDto(null, type, defaultAmount, false, null);
+        else
+        {
+            p.Amount = amount;
+        }
+    }
+
+    private async Task<Payment> UpsertPayment(Guid renterId, int month, int year, string type, decimal amount, bool isPaid, DateTime? paidDate, CancellationToken ct)
+    {
+        var p = await _db.Payments.FirstOrDefaultAsync(x => x.RenterId == renterId && x.Month == month && x.Year == year && x.Type == type, ct);
+        if (p == null)
+        {
+            p = new Payment { Id = Guid.NewGuid(), RenterId = renterId, Month = month, Year = year, Type = type, Amount = amount, IsPaid = isPaid, PaidDate = paidDate, CreatedAt = DateTime.UtcNow };
+            _db.Payments.Add(p);
+        }
+        else
+        {
+            p.Amount = amount > 0 ? amount : p.Amount;
+            p.IsPaid = isPaid;
+            p.PaidDate = paidDate;
+        }
+        return p;
+    }
+
+    private async Task SyncPaidStatus(Guid renterId, int month, int year, string type, bool isPaid, DateTime? paidDate, CancellationToken ct)
+    {
+        var p = await _db.Payments.FirstOrDefaultAsync(x => x.RenterId == renterId && x.Month == month && x.Year == year && x.Type == type, ct);
+        if (p != null) { p.IsPaid = isPaid; p.PaidDate = paidDate; }
     }
 }
 
 // ── Request / Response records ─────────────────────────────────
 public record CreateGroupRequest(string Name);
 public record CreateRenterRequest(string Name, string? PhoneNumber, decimal RentPrice);
-public record SetPaymentRequest(int Month, int Year, string Type, decimal Amount, bool IsPaid);
+public record UpdateBillsRequest(int Month, int Year, decimal ElectricityAmount, decimal WaterAmount);
+public record TogglePaidRequest(int Month, int Year, bool IsPaid);
 
 public record GroupDto(Guid Id, string Name, DateTime CreatedAt, int RenterCount, decimal TotalRent);
 public record RenterDto(Guid Id, Guid GroupId, string Name, string PhoneNumber, decimal RentPrice, DateTime CreatedAt, DateTime? UpdatedAt);
-public record PaymentDto(Guid Id, Guid RenterId, int Month, int Year, string Type, decimal Amount, bool IsPaid, DateTime? PaidDate);
-public record PaymentItemDto(Guid? Id, string Type, decimal Amount, bool IsPaid, DateTime? PaidDate);
-public record RenterPaymentsDto(Guid RenterId, string Name, string PhoneNumber, decimal RentPrice, PaymentItemDto Rent, PaymentItemDto Electricity, PaymentItemDto Water);
+public record RenterPaymentsDto(Guid RenterId, string Name, string PhoneNumber, decimal RentPrice, decimal RentAmount, decimal ElectricityAmount, decimal WaterAmount, decimal TotalAmount, bool IsPaid, DateTime? PaidDate, DateTime? WhatsAppSentAt);
 
 // Reports
 public record TypeSummaryDto(int Paid, int Unpaid, decimal CollectedAmount);
-public record BlockReportDto(Guid GroupId, string GroupName, int RenterCount, decimal TotalRent, TypeSummaryDto Rent, TypeSummaryDto Electricity, TypeSummaryDto Water);
-public record RenterReportDto(Guid RenterId, string Name, decimal RentPrice, PaymentStatusDto Rent, PaymentStatusDto Electricity, PaymentStatusDto Water);
-public record PaymentStatusDto(decimal Amount, bool IsPaid, DateTime? PaidDate);
+public record BlockReportDto(Guid GroupId, string GroupName, int RenterCount, decimal TotalRent, TypeSummaryDto Rent, TypeSummaryDto Electricity, TypeSummaryDto Water, decimal TotalCollected);
+public record RenterReportDto(Guid RenterId, string Name, decimal RentPrice, decimal RentAmount, decimal ElectricityAmount, decimal WaterAmount, decimal TotalAmount, bool IsPaid, DateTime? PaidDate);

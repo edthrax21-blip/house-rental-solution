@@ -16,20 +16,23 @@ export interface Translations {
   cancel: string; save: string; saving: string; invalidRentPrice: string;
   paymentManagementTitle: string; blockLabel: string; selectBlock: string; monthLabel: string;
   yearLabel: string; selectBlockToManage2: string; noRentersInBlock: string;
-  renterCol: string; rentCol: string; electricityCol: string; waterCol: string; receiptCol: string;
-  paid: string; unpaid: string; perMonth: string; rentReceipt: string; elecReceipt: string;
-  waterReceipt: string; enterElecBillAmount: string; enterWaterBillAmount: string;
-  amountDollar: string; markAsPaid: string;
+  renterCol: string; rentCol: string; electricityCol: string; waterCol: string; totalRentAmountCol: string;
+  statusCol: string; receiptCol: string; waStatusCol: string;
+  paid: string; unpaid: string; perMonth: string;
+  enterElecBillAmount: string; enterWaterBillAmount: string;
+  amountDollar: string; updateBills: string; waSentAt: string; waNotSent: string;
   reportsTitle: string; blockOverview: string; noBlocksFound: string; totalRent: string;
   renterDetails: string; exportPdf: string; rentStatus: string; elecStatus: string; waterStatus: string;
   months: string[];
   receiptTitle: string; receiptPeriod: string; receiptGenerated: string; receiptDetails: string;
-  receiptBlock: string; receiptRenter: string; receiptPhone: string; receiptPaymentType: string;
-  receiptAmount: string; receiptStatus: string; receiptPaidStatus: string;
+  receiptBlock: string; receiptRenter: string; receiptPhone: string;
+  receiptRentAmount: string; receiptElecAmount: string; receiptWaterAmount: string; receiptTotalAmount: string;
+  receiptStatus: string; receiptPaidStatus: string;
   receiptConfirmed: string; receiptThankYou: string; receiptId: string;
   typeRent: string; typeElectricity: string; typeWater: string;
   reportPaymentReport: string; reportSummary: string; reportTotalRenters: string;
   reportCollected: string; reportGeneratedOn: string; dismiss: string; na: string;
+  sendWhatsApp: string; waSending: string; waSentSuccess: string; waReceiptMsg: string; waDownloadReceipt: string;
 }
 
 const en: Translations = {
@@ -114,17 +117,19 @@ const en: Translations = {
   rentCol: 'Rent',
   electricityCol: 'Electricity',
   waterCol: 'Water',
+  totalRentAmountCol: 'Total Rent Amount',
+  statusCol: 'Status',
   receiptCol: 'Receipt',
+  waStatusCol: 'WhatsApp Status',
   paid: 'Paid',
   unpaid: 'Unpaid',
   perMonth: '/mo',
-  rentReceipt: 'Rent',
-  elecReceipt: 'Elec',
-  waterReceipt: 'Water',
   enterElecBillAmount: 'Enter Electricity Bill Amount',
   enterWaterBillAmount: 'Enter Water Bill Amount',
   amountDollar: 'Amount ($)',
-  markAsPaid: 'Mark as Paid',
+  updateBills: 'Update',
+  waSentAt: 'Sent',
+  waNotSent: 'Not sent',
 
   // Reports
   reportsTitle: 'Reports',
@@ -141,15 +146,17 @@ const en: Translations = {
   months: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
 
   // Receipt PDF
-  receiptTitle: 'RECEIPT',
+  receiptTitle: 'PAYMENT RECEIPT',
   receiptPeriod: 'Period:',
   receiptGenerated: 'Generated:',
-  receiptDetails: 'Receipt Details',
+  receiptDetails: 'Payment Breakdown',
   receiptBlock: 'Block:',
   receiptRenter: 'Renter:',
   receiptPhone: 'Phone:',
-  receiptPaymentType: 'Payment Type:',
-  receiptAmount: 'Amount:',
+  receiptRentAmount: 'Rent:',
+  receiptElecAmount: 'Electricity:',
+  receiptWaterAmount: 'Water:',
+  receiptTotalAmount: 'Total Amount:',
   receiptStatus: 'Status:',
   receiptPaidStatus: 'PAID',
   receiptConfirmed: 'Payment Confirmed',
@@ -169,6 +176,11 @@ const en: Translations = {
   reportGeneratedOn: 'Generated:',
   dismiss: 'Dismiss',
   na: 'N/A',
+  sendWhatsApp: 'Send WhatsApp',
+  waSending: 'Sending...',
+  waSentSuccess: 'WhatsApp message sent successfully!',
+  waReceiptMsg: 'Hi {name}, here is your payment receipt for {period}.\n\nBlock: {block}\nRent: ${rent}\nElectricity: ${electricity}\nWater: ${water}\nTotal: ${total}\nStatus: Paid\n\nThank you!',
+  waDownloadReceipt: 'Download your receipt here:',
 };
 
 const ms: Translations = {
@@ -247,17 +259,19 @@ const ms: Translations = {
   rentCol: 'Sewa',
   electricityCol: 'Elektrik',
   waterCol: 'Air',
+  totalRentAmountCol: 'Jumlah Sewa Keseluruhan',
+  statusCol: 'Status',
   receiptCol: 'Resit',
+  waStatusCol: 'Status WhatsApp',
   paid: 'Dibayar',
   unpaid: 'Belum Bayar',
   perMonth: '/bln',
-  rentReceipt: 'Sewa',
-  elecReceipt: 'Elek',
-  waterReceipt: 'Air',
   enterElecBillAmount: 'Masukkan Jumlah Bil Elektrik',
   enterWaterBillAmount: 'Masukkan Jumlah Bil Air',
   amountDollar: 'Jumlah ($)',
-  markAsPaid: 'Tandakan Dibayar',
+  updateBills: 'Kemaskini',
+  waSentAt: 'Dihantar',
+  waNotSent: 'Belum dihantar',
 
   reportsTitle: 'Laporan',
   blockOverview: 'Gambaran Keseluruhan Blok',
@@ -271,15 +285,17 @@ const ms: Translations = {
 
   months: ['Januari', 'Februari', 'Mac', 'April', 'Mei', 'Jun', 'Julai', 'Ogos', 'September', 'Oktober', 'November', 'Disember'],
 
-  receiptTitle: 'RESIT',
+  receiptTitle: 'RESIT PEMBAYARAN',
   receiptPeriod: 'Tempoh:',
   receiptGenerated: 'Dijana:',
-  receiptDetails: 'Butiran Resit',
+  receiptDetails: 'Pecahan Pembayaran',
   receiptBlock: 'Blok:',
   receiptRenter: 'Penyewa:',
   receiptPhone: 'Telefon:',
-  receiptPaymentType: 'Jenis Bayaran:',
-  receiptAmount: 'Jumlah:',
+  receiptRentAmount: 'Sewa:',
+  receiptElecAmount: 'Elektrik:',
+  receiptWaterAmount: 'Air:',
+  receiptTotalAmount: 'Jumlah Keseluruhan:',
   receiptStatus: 'Status:',
   receiptPaidStatus: 'DIBAYAR',
   receiptConfirmed: 'Pembayaran Disahkan',
@@ -297,6 +313,11 @@ const ms: Translations = {
   reportGeneratedOn: 'Dijana:',
   dismiss: 'Tutup',
   na: 'T/A',
+  sendWhatsApp: 'Hantar WhatsApp',
+  waSending: 'Menghantar...',
+  waSentSuccess: 'Mesej WhatsApp berjaya dihantar!',
+  waReceiptMsg: 'Hai {name}, ini resit pembayaran anda untuk {period}.\n\nBlok: {block}\nSewa: ${rent}\nElektrik: ${electricity}\nAir: ${water}\nJumlah: ${total}\nStatus: Dibayar\n\nTerima kasih!',
+  waDownloadReceipt: 'Muat turun resit anda di sini:',
 };
 
 export const translations: Record<Lang, Translations> = { en, ms };

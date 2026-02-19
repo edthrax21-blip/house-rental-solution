@@ -34,6 +34,8 @@ export function Reports() {
     finally { setDrillLoading(false); }
   };
 
+  const fmtAmt = (a: number) => a > 0 ? `$${Number(a).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '\u2014';
+
   const exportBlockPdf = () => {
     if (!drillGroup || renterReport.length === 0) return;
     const doc = new jsPDF({ orientation: 'landscape' });
@@ -53,8 +55,8 @@ export function Reports() {
     doc.setTextColor(26, 25, 23);
     let y = 50;
 
-    const cols = [15, 70, 115, 145, 180, 210, 240];
-    const headers = [t.renterCol, `${t.rentCol} ($)`, t.rentStatus, `${t.electricityCol} ($)`, t.elecStatus, `${t.waterCol} ($)`, t.waterStatus];
+    const cols = [15, 65, 105, 145, 190, 230];
+    const headers = [t.renterCol, `${t.rentCol} ($)`, `${t.electricityCol} ($)`, `${t.waterCol} ($)`, `${t.totalRentAmountCol} ($)`, t.statusCol];
 
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
@@ -64,22 +66,18 @@ export function Reports() {
     y += 12;
 
     doc.setFont('helvetica', 'normal');
-    const fmtAmt = (a: number) => a > 0 ? `$${Number(a).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '\u2014';
 
     for (const r of renterReport) {
       if (y > doc.internal.pageSize.getHeight() - 20) { doc.addPage(); y = 20; }
       doc.text(r.name, cols[0], y);
-      doc.text(fmtAmt(r.rent.amount), cols[1], y);
-      doc.setTextColor(r.rent.isPaid ? 45 : 157, r.rent.isPaid ? 106 : 2, r.rent.isPaid ? 79 : 8);
-      doc.text(r.rent.isPaid ? t.paid : t.unpaid, cols[2], y);
-      doc.setTextColor(26, 25, 23);
-      doc.text(fmtAmt(r.electricity.amount), cols[3], y);
-      doc.setTextColor(r.electricity.isPaid ? 45 : 157, r.electricity.isPaid ? 106 : 2, r.electricity.isPaid ? 79 : 8);
-      doc.text(r.electricity.isPaid ? t.paid : t.unpaid, cols[4], y);
-      doc.setTextColor(26, 25, 23);
-      doc.text(fmtAmt(r.water.amount), cols[5], y);
-      doc.setTextColor(r.water.isPaid ? 45 : 157, r.water.isPaid ? 106 : 2, r.water.isPaid ? 79 : 8);
-      doc.text(r.water.isPaid ? t.paid : t.unpaid, cols[6], y);
+      doc.text(fmtAmt(r.rentAmount), cols[1], y);
+      doc.text(fmtAmt(r.electricityAmount), cols[2], y);
+      doc.text(fmtAmt(r.waterAmount), cols[3], y);
+      doc.setFont('helvetica', 'bold');
+      doc.text(fmtAmt(r.totalAmount), cols[4], y);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(r.isPaid ? 45 : 157, r.isPaid ? 106 : 2, r.isPaid ? 79 : 8);
+      doc.text(r.isPaid ? t.paid : t.unpaid, cols[5], y);
       doc.setTextColor(26, 25, 23);
       y += 9;
     }
@@ -98,11 +96,14 @@ export function Reports() {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
       doc.text(`${t.reportTotalRenters} ${block.renterCount}`, 15, y);
-      doc.text(`${t.typeRent} — ${t.paid}: ${block.rent.paid}, ${t.unpaid}: ${block.rent.unpaid}, ${t.reportCollected} $${Number(block.rent.collectedAmount).toLocaleString()}`, 80, y);
+      doc.text(`${t.typeRent} ${t.reportCollected} $${Number(block.rent.collectedAmount).toLocaleString()}`, 80, y);
       y += 7;
-      doc.text(`${t.typeElectricity} — ${t.paid}: ${block.electricity.paid}, ${t.unpaid}: ${block.electricity.unpaid}, ${t.reportCollected} $${Number(block.electricity.collectedAmount).toLocaleString()}`, 80, y);
+      doc.text(`${t.typeElectricity} ${t.reportCollected} $${Number(block.electricity.collectedAmount).toLocaleString()}`, 80, y);
       y += 7;
-      doc.text(`${t.typeWater} — ${t.paid}: ${block.water.paid}, ${t.unpaid}: ${block.water.unpaid}, ${t.reportCollected} $${Number(block.water.collectedAmount).toLocaleString()}`, 80, y);
+      doc.text(`${t.typeWater} ${t.reportCollected} $${Number(block.water.collectedAmount).toLocaleString()}`, 80, y);
+      y += 7;
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${t.totalRentAmountCol}: $${Number(block.totalCollected).toLocaleString()}`, 80, y);
     }
 
     doc.setTextColor(130, 130, 130);
@@ -149,14 +150,15 @@ export function Reports() {
                 </div>
                 <div className="report-type">
                   <span className="report-type-label">{t.typeElectricity}</span>
-                  <span className="report-type-paid">{b.electricity.paid} {t.paid.toLowerCase()}</span>
-                  {b.electricity.unpaid > 0 && <span className="report-type-unpaid">{b.electricity.unpaid} {t.unpaid.toLowerCase()}</span>}
+                  <span className="report-type-paid">${Number(b.electricity.collectedAmount).toLocaleString()}</span>
                 </div>
                 <div className="report-type">
                   <span className="report-type-label">{t.typeWater}</span>
-                  <span className="report-type-paid">{b.water.paid} {t.paid.toLowerCase()}</span>
-                  {b.water.unpaid > 0 && <span className="report-type-unpaid">{b.water.unpaid} {t.unpaid.toLowerCase()}</span>}
+                  <span className="report-type-paid">${Number(b.water.collectedAmount).toLocaleString()}</span>
                 </div>
+              </div>
+              <div className="report-block-total">
+                {t.totalRentAmountCol}: <strong>${Number(b.totalCollected).toLocaleString()}</strong>
               </div>
             </button>
           ))}
@@ -184,23 +186,21 @@ export function Reports() {
                     <tr>
                       <th>{t.renterCol}</th>
                       <th>{t.rentCol} ($)</th>
-                      <th>{t.rentStatus}</th>
                       <th>{t.electricityCol} ($)</th>
-                      <th>{t.elecStatus}</th>
                       <th>{t.waterCol} ($)</th>
-                      <th>{t.waterStatus}</th>
+                      <th>{t.totalRentAmountCol} ($)</th>
+                      <th>{t.statusCol}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {renterReport.map(r => (
                       <tr key={r.renterId}>
                         <td className="renter-name">{r.name}</td>
-                        <td>${Number(r.rent.amount).toLocaleString()}</td>
-                        <td><span className={`badge-static ${r.rent.isPaid ? 'badge-static--paid' : 'badge-static--unpaid'}`}>{r.rent.isPaid ? t.paid : t.unpaid}</span></td>
-                        <td>{r.electricity.amount > 0 ? `$${Number(r.electricity.amount).toLocaleString()}` : '\u2014'}</td>
-                        <td><span className={`badge-static ${r.electricity.isPaid ? 'badge-static--paid' : 'badge-static--unpaid'}`}>{r.electricity.isPaid ? t.paid : t.unpaid}</span></td>
-                        <td>{r.water.amount > 0 ? `$${Number(r.water.amount).toLocaleString()}` : '\u2014'}</td>
-                        <td><span className={`badge-static ${r.water.isPaid ? 'badge-static--paid' : 'badge-static--unpaid'}`}>{r.water.isPaid ? t.paid : t.unpaid}</span></td>
+                        <td>{fmtAmt(r.rentAmount)}</td>
+                        <td>{fmtAmt(r.electricityAmount)}</td>
+                        <td>{fmtAmt(r.waterAmount)}</td>
+                        <td className="renter-price">{fmtAmt(r.totalAmount)}</td>
+                        <td><span className={`badge-static ${r.isPaid ? 'badge-static--paid' : 'badge-static--unpaid'}`}>{r.isPaid ? t.paid : t.unpaid}</span></td>
                       </tr>
                     ))}
                   </tbody>

@@ -16,27 +16,24 @@ export interface Renter {
   updatedAt: string | null;
 }
 
-export interface PaymentItem {
-  id: string | null;
-  type: string;
-  amount: number;
-  isPaid: boolean;
-  paidDate: string | null;
-}
-
 export interface RenterPayments {
   renterId: string;
   name: string;
   phoneNumber: string;
   rentPrice: number;
-  rent: PaymentItem;
-  electricity: PaymentItem;
-  water: PaymentItem;
+  rentAmount: number;
+  electricityAmount: number;
+  waterAmount: number;
+  totalAmount: number;
+  isPaid: boolean;
+  paidDate: string | null;
+  whatsAppSentAt: string | null;
 }
 
 export interface CreateGroup { name: string; }
 export interface CreateRenter { name: string; phoneNumber: string; rentPrice: number; }
-export interface SetPayment { month: number; year: number; type: string; amount: number; isPaid: boolean; }
+export interface UpdateBills { month: number; year: number; electricityAmount: number; waterAmount: number; }
+export interface TogglePaid { month: number; year: number; isPaid: boolean; }
 
 // Reports
 export interface TypeSummary { paid: number; unpaid: number; collectedAmount: number; }
@@ -48,13 +45,16 @@ export interface BlockReport {
   rent: TypeSummary;
   electricity: TypeSummary;
   water: TypeSummary;
+  totalCollected: number;
 }
-export interface PaymentStatus { amount: number; isPaid: boolean; paidDate: string | null; }
 export interface RenterReport {
   renterId: string;
   name: string;
   rentPrice: number;
-  rent: PaymentStatus;
-  electricity: PaymentStatus;
-  water: PaymentStatus;
+  rentAmount: number;
+  electricityAmount: number;
+  waterAmount: number;
+  totalAmount: number;
+  isPaid: boolean;
+  paidDate: string | null;
 }

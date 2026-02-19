@@ -1,4 +1,4 @@
-import type { RentalGroup, Renter, RenterPayments, CreateGroup, CreateRenter, SetPayment, BlockReport, RenterReport } from '../types/group';
+import type { RentalGroup, Renter, RenterPayments, CreateGroup, CreateRenter, UpdateBills, TogglePaid, BlockReport, RenterReport } from '../types/group';
 import { getStoredToken } from './auth';
 import { apiBase } from './config';
 
@@ -55,8 +55,11 @@ export const groupsApi = {
   async getPayments(groupId: string, month: number, year: number): Promise<RenterPayments[]> {
     return handleResponse(await fetch(`${BASE}/${groupId}/payments?month=${month}&year=${year}`, { headers: authHeaders() }));
   },
-  async setPayment(groupId: string, renterId: string, data: SetPayment): Promise<unknown> {
-    return handleResponse(await fetch(`${BASE}/${groupId}/renters/${renterId}/payment`, { method: 'PUT', headers: authHeaders(), body: JSON.stringify(data) }));
+  async updateBills(groupId: string, renterId: string, data: UpdateBills): Promise<unknown> {
+    return handleResponse(await fetch(`${BASE}/${groupId}/renters/${renterId}/bills`, { method: 'PUT', headers: authHeaders(), body: JSON.stringify(data) }));
+  },
+  async togglePaid(groupId: string, renterId: string, data: TogglePaid): Promise<unknown> {
+    return handleResponse(await fetch(`${BASE}/${groupId}/renters/${renterId}/toggle-paid`, { method: 'PUT', headers: authHeaders(), body: JSON.stringify(data) }));
   },
 
   // Reports
@@ -65,5 +68,28 @@ export const groupsApi = {
   },
   async getRenterReport(groupId: string, month: number, year: number): Promise<RenterReport[]> {
     return handleResponse(await fetch(`${BASE}/reports/${groupId}/renters?month=${month}&year=${year}`, { headers: authHeaders() }));
+  },
+};
+
+const WA_BASE = `${apiBase}/api/whatsapp`;
+const RECEIPTS_BASE = `${apiBase}/api/receipts`;
+
+export const whatsAppApi = {
+  async getStatus(): Promise<{ configured: boolean }> {
+    return handleResponse(await fetch(`${WA_BASE}/status`, { headers: authHeaders() }));
+  },
+  async sendReceipt(phoneNumber: string, message: string, renterId?: string, month?: number, year?: number): Promise<{ sid: string; status: string; whatsAppSentAt: string }> {
+    return handleResponse(await fetch(`${WA_BASE}/send-receipt`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ phoneNumber, message, renterId, month, year }) }));
+  },
+};
+
+export const receiptsApi = {
+  async upload(pdfBlob: Blob, fileName: string): Promise<{ id: string; downloadUrl: string }> {
+    const token = getStoredToken();
+    const form = new FormData();
+    form.append('file', pdfBlob, fileName);
+    const headers: HeadersInit = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    return handleResponse(await fetch(`${RECEIPTS_BASE}/upload`, { method: 'POST', headers, body: form }));
   },
 };
