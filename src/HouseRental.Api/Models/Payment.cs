@@ -10,6 +10,7 @@ public class Payment
     public decimal Amount { get; set; }
     public bool IsPaid { get; set; }
     public DateTime? PaidDate { get; set; }
+    public DateTime? WhatsAppSentAt { get; set; }
     public DateTime CreatedAt { get; set; }
 
     public Renter? Renter { get; set; }
