@@ -53,6 +53,23 @@
 
 .topnav-user { font-size: 0.85rem; color: var(--text-muted); }
 
+.lang-select {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.login-lang-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.5rem;
+}
+
 /* ── App main ────────────────────────────────── */
 .app-main {
   max-width: 1200px;
@@ -235,6 +252,8 @@
 .report-type-label { font-size: 0.72rem; text-transform: uppercase; font-weight: 600; color: var(--text-muted); letter-spacing: 0.03em; }
 .report-type-paid { font-size: 0.82rem; font-weight: 600; color: var(--accent); }
 .report-type-unpaid { font-size: 0.82rem; font-weight: 600; color: var(--danger); }
+
+.drill-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 
 /* ── Buttons ─────────────────────────────────── */
 .btn {

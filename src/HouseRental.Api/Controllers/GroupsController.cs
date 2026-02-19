@@ -234,7 +234,10 @@ public class GroupsController : ControllerBase
     private static PaymentItemDto ToPaymentItem(Dictionary<string, Payment> dict, string type, decimal defaultAmount)
     {
         if (dict.TryGetValue(type, out var p))
-            return new PaymentItemDto(p.Id, p.Type, p.Amount, p.IsPaid, p.PaidDate);
+        {
+            var amount = p.Amount > 0 ? p.Amount : defaultAmount;
+            return new PaymentItemDto(p.Id, p.Type, amount, p.IsPaid, p.PaidDate);
+        }
         return new PaymentItemDto(null, type, defaultAmount, false, null);
     }
 }
