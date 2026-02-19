@@ -194,7 +194,7 @@ const ms: Translations = {
   ok: 'ok',
   missingRestartApi: 'tiada — mulakan semula API',
 
-  dashboard: 'Papan Pemuka',
+  dashboard: 'Dashboard',
   dashboardSubtitle: 'Pilih modul untuk bermula',
   moduleBlocks: 'Pengurusan Rumah/Blok',
   moduleBlocksDesc: 'Cipta dan urus blok sewaan. Tambah, edit, dan padam penyewa dalam setiap blok.',
