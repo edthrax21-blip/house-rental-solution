@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { groupsApi } from '../api/groups';
 import type { RentalGroup, Renter, CreateRenter } from '../types/group';
+import { useLanguage } from '../i18n/LanguageContext';
 import { GroupFormModal } from './GroupFormModal';
 import { RenterFormModal } from './RenterFormModal';
 
 export function BlockManagement() {
+  const { t } = useLanguage();
   const [groups, setGroups] = useState<RentalGroup[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [renters, setRenters] = useState<Renter[]>([]);
@@ -51,32 +53,31 @@ export function BlockManagement() {
     setRenterModalOpen(false); setEditingRenter(null); await loadRenters(); await loadGroups();
   };
   const handleDeleteRenter = async (id: string) => {
-    if (!selectedGroupId || !confirm('Delete this renter?')) return;
+    if (!selectedGroupId || !confirm(t.deleteRenterConfirm)) return;
     await groupsApi.deleteRenter(selectedGroupId, id); await loadRenters(); await loadGroups();
   };
 
   return (
     <div className="page-content">
-      <h2 className="page-title">Block / Renter Management</h2>
-      {error && <div className="error-banner" role="alert">{error} <button className="dismiss-btn" onClick={() => setError(null)}>Dismiss</button></div>}
+      <h2 className="page-title">{t.blockManagementTitle}</h2>
+      {error && <div className="error-banner" role="alert">{error} <button className="dismiss-btn" onClick={() => setError(null)}>{t.dismiss}</button></div>}
 
       <div className="bm-layout">
-        {/* Block list */}
         <div className="bm-sidebar card">
           <div className="card-section-header">
-            <h3>Blocks</h3>
-            <button className="btn btn-primary btn-sm" onClick={() => { setEditingGroup(null); setGroupModalOpen(true); }}>+ Add Block</button>
+            <h3>{t.blocks}</h3>
+            <button className="btn btn-primary btn-sm" onClick={() => { setEditingGroup(null); setGroupModalOpen(true); }}>{t.addBlock}</button>
           </div>
           <ul className="group-list">
-            {groups.length === 0 && <li className="group-empty">No blocks yet</li>}
+            {groups.length === 0 && <li className="group-empty">{t.noBlocksYet}</li>}
             {groups.map(g => (
               <li key={g.id} className={`group-item${selectedGroupId === g.id ? ' group-item--active' : ''}`} onClick={() => setSelectedGroupId(g.id)}>
                 <div className="group-item-info">
                   <span className="group-item-name">{g.name}</span>
-                  <span className="group-item-count">{g.renterCount} renter{g.renterCount !== 1 ? 's' : ''}</span>
+                  <span className="group-item-count">{g.renterCount} {g.renterCount !== 1 ? t.renters : t.renter}</span>
                 </div>
                 <div className="group-item-actions" onClick={e => e.stopPropagation()}>
-                  <button className="btn-icon" title="Edit" onClick={() => { setEditingGroup(g); setGroupModalOpen(true); }}>&#9998;</button>
+                  <button className="btn-icon" title={t.edit} onClick={() => { setEditingGroup(g); setGroupModalOpen(true); }}>&#9998;</button>
                   {confirmDelete === g.id ? (
                     <>
                       <button className="btn-icon btn-icon--danger" onClick={() => handleDeleteGroup(g.id)}>&#10003;</button>
@@ -91,23 +92,22 @@ export function BlockManagement() {
           </ul>
         </div>
 
-        {/* Renter list */}
         <div className="bm-main card">
           {selectedGroup ? (
             <>
               <div className="card-section-header">
                 <div>
-                  <h3>{selectedGroup.name} — Renters</h3>
-                  <span className="text-muted">{renters.length} renter{renters.length !== 1 ? 's' : ''}</span>
+                  <h3>{selectedGroup.name} — {t.rentersLabel}</h3>
+                  <span className="text-muted">{renters.length} {renters.length !== 1 ? t.renters : t.renter}</span>
                 </div>
-                <button className="btn btn-primary btn-sm" onClick={() => { setEditingRenter(null); setRenterModalOpen(true); }}>+ Add Renter</button>
+                <button className="btn btn-primary btn-sm" onClick={() => { setEditingRenter(null); setRenterModalOpen(true); }}>{t.addRenter}</button>
               </div>
-              {loading ? <p className="empty-state-inline">Loading...</p> : renters.length === 0 ? (
-                <p className="empty-state-inline">No renters yet. Click "+ Add Renter" to get started.</p>
+              {loading ? <p className="empty-state-inline">{t.loading}</p> : renters.length === 0 ? (
+                <p className="empty-state-inline">{t.noRentersYet}</p>
               ) : (
                 <div className="renter-table-wrap">
                   <table className="renter-table">
-                    <thead><tr><th>Name</th><th>Phone</th><th>Rent Price</th><th>Actions</th></tr></thead>
+                    <thead><tr><th>{t.name}</th><th>{t.phone}</th><th>{t.rentPrice}</th><th>{t.actions}</th></tr></thead>
                     <tbody>
                       {renters.map(r => (
                         <tr key={r.id}>
@@ -116,8 +116,8 @@ export function BlockManagement() {
                           <td className="renter-price">${Number(r.rentPrice).toLocaleString()}</td>
                           <td>
                             <div className="renter-actions">
-                              <button className="btn btn-ghost btn-sm" onClick={() => { setEditingRenter(r); setRenterModalOpen(true); }}>Edit</button>
-                              <button className="btn btn-danger btn-sm" onClick={() => handleDeleteRenter(r.id)}>Delete</button>
+                              <button className="btn btn-ghost btn-sm" onClick={() => { setEditingRenter(r); setRenterModalOpen(true); }}>{t.edit}</button>
+                              <button className="btn btn-danger btn-sm" onClick={() => handleDeleteRenter(r.id)}>{t.delete}</button>
                             </div>
                           </td>
                         </tr>
@@ -128,7 +128,7 @@ export function BlockManagement() {
               )}
             </>
           ) : (
-            <p className="empty-state-inline">Select a block to manage its renters.</p>
+            <p className="empty-state-inline">{t.selectBlockToManage}</p>
           )}
         </div>
       </div>
