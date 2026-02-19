@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { login, setStoredAuth, checkDbStatus, type LoginResponse } from '../api/auth';
+import { useLanguage } from '../i18n/LanguageContext';
+import type { Lang } from '../i18n/translations';
 import './LoginPage.css';
 
 interface LoginPageProps {
@@ -7,6 +9,7 @@ interface LoginPageProps {
 }
 
 export function LoginPage({ onLogin }: LoginPageProps) {
+  const { lang, setLang, t } = useLanguage();
   const [userName, setUserName] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -35,57 +38,37 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   return (
     <div className="login-page">
       <div className="login-card">
-        <h1 className="login-title">House Rental Manager</h1>
-        <p className="login-subtitle">Sign in to continue</p>
+        <div className="login-lang-row">
+          <select className="lang-select" value={lang} onChange={e => setLang(e.target.value as Lang)}>
+            <option value="en">English</option>
+            <option value="ms">Bahasa Melayu</option>
+          </select>
+        </div>
+        <h1 className="login-title">{t.appName}</h1>
+        <p className="login-subtitle">{t.signInSubtitle}</p>
 
         <form className="login-form" onSubmit={handleSubmit}>
-          {error && (
-            <div className="login-error" role="alert">
-              {error}
-            </div>
-          )}
+          {error && <div className="login-error" role="alert">{error}</div>}
           <div className="login-field">
-            <label htmlFor="login-username">Username</label>
-            <input
-              id="login-username"
-              type="text"
-              autoComplete="username"
-              value={userName}
-              onChange={(e) => setUserName(e.target.value)}
-              placeholder="Enter username"
-              required
-              disabled={loading}
-            />
+            <label htmlFor="login-username">{t.username}</label>
+            <input id="login-username" type="text" autoComplete="username" value={userName} onChange={(e) => setUserName(e.target.value)} placeholder={t.enterUsername} required disabled={loading} />
           </div>
           <div className="login-field">
-            <label htmlFor="login-password">Password</label>
-            <input
-              id="login-password"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter password"
-              required
-              disabled={loading}
-            />
+            <label htmlFor="login-password">{t.password}</label>
+            <input id="login-password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={t.enterPassword} required disabled={loading} />
           </div>
-          <button
-            type="submit"
-            className="btn btn-primary login-submit"
-            disabled={loading}
-          >
-            {loading ? 'Signing in…' : 'Sign in'}
+          <button type="submit" className="btn btn-primary login-submit" disabled={loading}>
+            {loading ? t.signingIn : t.signIn}
           </button>
         </form>
 
         <p className="login-hint">
-          Default: <strong>admin</strong> / <strong>admin123</strong>
+          {t.loginDefault} <strong>admin</strong> / <strong>admin123</strong>
         </p>
         <p className={`login-db-status db-${dbStatus.db}`} aria-live="polite">
-          DB connection: {dbStatus.db === 'checking' ? '…' : dbStatus.db === 'online' ? 'online' : 'offline'}
+          {t.dbConnection} {dbStatus.db === 'checking' ? t.checking : dbStatus.db === 'online' ? t.online : t.offline}
           {dbStatus.db === 'online' && (
-            <> · Rentals table: {dbStatus.rentalsTableOk ? 'ok' : <span className="db-offline">missing — restart the API</span>}</>
+            <> · {t.rentalsTable} {dbStatus.rentalsTableOk ? t.ok : <span className="db-offline">{t.missingRestartApi}</span>}</>
           )}
         </p>
       </div>
