@@ -6,15 +6,6 @@ export interface RentalGroup {
   totalRent: number;
 }
 
-export interface Payment {
-  id: string;
-  renterId: string;
-  month: number;
-  year: number;
-  isPaid: boolean;
-  paidDate: string | null;
-}
-
 export interface Renter {
   id: string;
   groupId: string;
@@ -23,41 +14,47 @@ export interface Renter {
   rentPrice: number;
   createdAt: string;
   updatedAt: string | null;
-  payment: Payment | null; // payment for the requested month
 }
 
-export interface GroupSummary {
-  groupId: string;
-  groupName: string;
-  month: number;
-  year: number;
-  totalRenters: number;
-  totalRentPrice: number;
-  paidRenters: number;
-  totalPaidAmount: number;
-  unpaidRenters: number;
-  totalUnpaidAmount: number;
+export interface PaymentItem {
+  id: string | null;
+  type: string;
+  amount: number;
+  isPaid: boolean;
+  paidDate: string | null;
 }
 
-export interface MonthlyRecord {
-  month: number;
-  year: number;
-  paidCount: number;
-  unpaidCount: number;
-}
-
-export interface CreateGroup {
-  name: string;
-}
-
-export interface CreateRenter {
+export interface RenterPayments {
+  renterId: string;
   name: string;
   phoneNumber: string;
   rentPrice: number;
+  rent: PaymentItem;
+  electricity: PaymentItem;
+  water: PaymentItem;
 }
 
-export interface SetPayment {
-  month: number;
-  year: number;
-  isPaid: boolean;
+export interface CreateGroup { name: string; }
+export interface CreateRenter { name: string; phoneNumber: string; rentPrice: number; }
+export interface SetPayment { month: number; year: number; type: string; amount: number; isPaid: boolean; }
+
+// Reports
+export interface TypeSummary { paid: number; unpaid: number; collectedAmount: number; }
+export interface BlockReport {
+  groupId: string;
+  groupName: string;
+  renterCount: number;
+  totalRent: number;
+  rent: TypeSummary;
+  electricity: TypeSummary;
+  water: TypeSummary;
+}
+export interface PaymentStatus { amount: number; isPaid: boolean; paidDate: string | null; }
+export interface RenterReport {
+  renterId: string;
+  name: string;
+  rentPrice: number;
+  rent: PaymentStatus;
+  electricity: PaymentStatus;
+  water: PaymentStatus;
 }
